@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mall Customer Segmentation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --navy:  #1A3C5E;
+    --teal:  #2E86AB;
+    --berry: #A23B72;
+    --amber: #F18F01;
+    --red:   #C73E1D;
+    --bg:    #EEF3F9;
+    --card:  #FFFFFF;
+    --bdr:   #D4E1EE;
+    --muted: #64748B;
+    --text:  #1E293B;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); }
+
+  header {
+    background:var(--navy);
+    padding:0 2rem;
+    height:56px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:50;
+    border-bottom:3px solid var(--teal);
+  }
+  header .brand span { font-size:1.05rem; font-weight:700; color:#fff; letter-spacing:.02em; }
+  header .brand span em { color:var(--amber); font-style:normal; }
+  .pills { display:flex; gap:8px; }
+  .pill { font-family:'DM Mono',monospace; font-size:.7rem; padding:3px 10px; border-radius:20px; font-weight:500; }
+  .pill.teal  { background:var(--teal);  color:#fff; }
+  .pill.amber { background:var(--amber); color:#fff; }
+
+  main { max-width:1380px; margin:0 auto; padding:1.4rem 1.6rem 2rem; }
+
+  .page-title { margin-bottom:1.2rem; }
+  .page-title h2 { font-size:1.35rem; font-weight:700; color:var(--navy); }
+  .page-title p  { font-size:.82rem; color:var(--muted); margin-top:3px; }
+
+  .stats {
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:.9rem; margin-bottom:1.2rem;
+  }
+  @media(max-width:900px){ .stats{ grid-template-columns:repeat(3,1fr); } }
+  .stat {
+    background:var(--card); border:1px solid var(--bdr);
+    border-radius:12px; padding:1rem 1.1rem .9rem;
+    position:relative; overflow:hidden;
+  }
+  .stat::after {
+    content:''; position:absolute; top:0; left:0;
+    width:4px; height:100%; background:var(--ac, var(--teal));
+  }
+  .stat .v {
+    font-family:'DM Mono',monospace; font-size:1.75rem; font-weight:500;
+    color:var(--ac, var(--navy)); line-height:1;
+  }
+  .stat .l { font-size:.72rem; color:var(--muted); margin-top:5px; text-transform:uppercase; letter-spacing:.06em; }
+
+  .segs {
+    display:grid; grid-template-columns:repeat(5,1fr);
+    gap:.9rem; margin-bottom:1.2rem;
+  }
+  @media(max-width:1100px){ .segs{ grid-template-columns:repeat(3,1fr); } }
+  @media(max-width:700px) { .segs{ grid-template-columns:1fr 1fr; } }
+  .seg { background:var(--card); border:1px solid var(--bdr); border-radius:12px; overflow:hidden; }
+  .seg-h { padding:.55rem .85rem; font-size:.78rem; font-weight:700; color:#fff; line-height:1.3; }
+  .seg-b { padding:.7rem .85rem; }
+  .seg-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .seg-row .k { font-size:.73rem; color:var(--muted); }
+  .seg-row .vv { font-size:.76rem; font-weight:600; font-family:'DM Mono',monospace; }
+  .seg-tag { margin-top:8px; font-size:.7rem; color:#fff; padding:3px 8px; border-radius:5px; display:inline-block; line-height:1.4; }
+
+  .card { background:var(--card); border:1px solid var(--bdr); border-radius:14px; padding:1.2rem; }
+  .card-title {
+    font-size:.75rem; font-weight:600; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.07em;
+    margin-bottom:1rem; display:flex; align-items:center; gap:7px;
+  }
+  .card-title::before { content:''; width:8px; height:8px; background:var(--teal); border-radius:50%; flex-shrink:0; }
+
+  .g2 { display:grid; grid-template-columns:1fr 1fr; gap:1.1rem; margin-bottom:1.1rem; }
+  .g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.1rem; margin-bottom:1.1rem; }
+  .g1 { margin-bottom:1.1rem; }
+  @media(max-width:900px){ .g2,.g3{ grid-template-columns:1fr; } }
+
+  canvas { max-height:270px; }
+  #cv-scatter { max-height:340px; }
+
+  .tbl-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--bdr); margin-top:.5rem; }
+  table { width:100%; border-collapse:collapse; font-size:.8rem; }
+  th { background:var(--navy); color:#fff; padding:9px 14px; text-align:left; font-size:.74rem; font-weight:600; letter-spacing:.04em; white-space:nowrap; }
+  td { padding:7px 14px; border-bottom:1px solid var(--bdr); white-space:nowrap; }
+  tr:last-child td { border-bottom:none; }
+  tr:nth-child(even) td { background:#F5F9FD; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+
+  footer { text-align:center; padding:1.4rem; font-size:.73rem; color:var(--muted); font-family:'DM Mono',monospace; border-top:1px solid var(--bdr); margin-top:1rem; }
+
+  /* ── DATA PIPELINE EXPLAINER ─────────────────────────────────────────── */
+  .pipeline-section { margin-bottom:1.2rem; }
+
+  .pipeline-body {
+    display:block; background:var(--card);
+    border:1px solid var(--bdr);
+    border-radius:14px;
+    overflow:hidden;
+  }
+
+  /* Step tabs */
+  .step-tabs { display:flex; border-bottom:1px solid var(--bdr); overflow-x:auto; }
+  .step-tab {
+    flex-shrink:0; padding:.55rem 1rem; font-size:.73rem; font-weight:600;
+    color:var(--muted); cursor:pointer; border:none; background:none;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+    transition:color .2s, border-color .2s; white-space:nowrap;
+    font-family:'DM Sans',sans-serif;
+  }
+  .step-tab:hover { color:var(--teal); }
+  .step-tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+
+  .step-panels { padding:1.1rem 1.2rem; min-height:260px; }
+  .step-panel { display:none; }
+  .step-panel.active { display:block; }
+
+  .sp-title { font-size:.9rem; font-weight:700; color:var(--navy); margin-bottom:.35rem; }
+  .sp-desc { font-size:.78rem; color:var(--muted); line-height:1.65; margin-bottom:.9rem; }
+
+  /* Code block inside panel */
+  .sp-code {
+    background:#F0F5FB; border:1px solid var(--bdr); border-radius:8px;
+    padding:.75rem 1rem; font-family:'DM Mono',monospace; font-size:.72rem;
+    line-height:1.75; color:#1E293B; overflow-x:auto; margin-bottom:.9rem; white-space:pre;
+  }
+  .sp-code .hl  { background:#FFF3CD; border-radius:3px; padding:1px 3px; }
+  .sp-code .cm  { color:#94A3B8; }
+
+  /* Data cells row */
+  .sp-cells { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:.9rem; }
+  .sp-cell {
+    background:#F0F5FB; border:1px solid var(--bdr); border-radius:8px;
+    padding:.55rem .9rem; flex:1; min-width:100px; text-align:center;
+  }
+  .sp-cell.active { background:#E8F4FD; border-color:var(--teal); }
+  .sp-cell .sc-lbl { font-size:.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+  .sp-cell .sc-val { font-size:.95rem; font-weight:700; color:var(--navy); font-family:'DM Mono',monospace; }
+  .sp-cell .sc-sub { font-size:.65rem; color:var(--muted); margin-top:2px; }
+
+  /* Flow arrow row */
+  .sp-flow { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:.9rem; }
+  .sp-fbox {
+    background:#F0F5FB; border:1px solid var(--bdr); border-radius:6px;
+    padding:4px 10px; font-size:.72rem; font-family:'DM Mono',monospace; color:var(--navy); white-space:nowrap;
+  }
+  .sp-fbox.accent { background:#E8F4FD; border-color:var(--teal); color:var(--teal); font-weight:600; }
+  .sp-farr { color:var(--muted); font-size:.9rem; }
+
+  /* Mini bar chart */
+  .sp-bars { margin-bottom:.9rem; }
+  .sp-bar-row { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .sp-bar-lbl { font-size:.68rem; color:var(--muted); width:52px; text-align:right; flex-shrink:0; font-family:'DM Mono',monospace; }
+  .sp-bar-track { flex:1; height:13px; background:var(--bdr); border-radius:3px; overflow:hidden; }
+  .sp-bar-fill { height:100%; border-radius:3px; }
+  .sp-bar-cnt { font-size:.68rem; color:var(--muted); width:24px; font-family:'DM Mono',monospace; }
+
+  /* Cluster mini-cards */
+  .sp-clusters { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; margin-bottom:.9rem; }
+  @media(max-width:700px){ .sp-clusters{ grid-template-columns:repeat(3,1fr); } }
+  .sp-clcard { border-radius:8px; padding:7px 8px; text-align:center; border:1px solid var(--bdr); background:#F0F5FB; }
+  .sp-clcard .cc-name { font-size:.65rem; font-weight:700; margin-bottom:3px; }
+  .sp-clcard .cc-desc { font-size:.62rem; color:var(--muted); line-height:1.4; }
+
+  /* Nav buttons */
+  .sp-nav { display:flex; gap:8px; padding:.75rem 1.2rem; border-top:1px solid var(--bdr); background:#F8FAFCCC; align-items:center; }
+  .sp-btn {
+    font-size:.73rem; padding:5px 14px; border-radius:7px;
+    border:1px solid var(--bdr); background:#fff; color:var(--navy);
+    cursor:pointer; font-family:'DM Sans',sans-serif; font-weight:600;
+    transition:background .15s;
+  }
+  .sp-btn:hover { background:var(--bg); }
+  .sp-btn.primary { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .sp-btn.primary:hover { background:#2276a0; }
+  .sp-btn:disabled { opacity:.35; cursor:default; }
+  .sp-step-info { font-size:.72rem; color:var(--muted); margin-left:auto; font-family:'DM Mono',monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span>Mall Customer <em>Segmentation</em></span></div>
+  <div class="pills">
+    <span class="pill teal">K-Means · K=5</span>
+    <span class="pill amber">200 Customers</span>
+  </div>
+</header>
+
+<main>
+  <div class="page-title">
+    <h2>Customer Segmentation Dashboard</h2>
+    <p>Kaggle — Mall Customer Segmentation Dataset · Choudhary (2019) · Clustering runs in browser (pure JS)</p>
+  </div>
+
+  <!-- ── HOW WE TREATED THE DATA ─────────────────────────────────────── -->
+  <div class="pipeline-section">
+    <div class="pipeline-body" id="pipeline-body">
+      <div style="display:flex;align-items:center;gap:10px;padding:.85rem 1.2rem .5rem;border-bottom:1px solid var(--bdr)">
+        <div style="width:28px;height:28px;border-radius:8px;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div>
+          <div style="font-size:.82rem;font-weight:700;color:var(--navy)">How We Treated the Data</div>
+          <div style="font-size:.72rem;color:var(--muted)">Step-by-step: CSV → Normalisation → K-Means → Charts</div>
+        </div>
+      </div>
+      <div class="step-tabs" id="step-tabs">
+        <button class="step-tab active" onclick="showStep(0)">1 · Raw Data</button>
+        <button class="step-tab" onclick="showStep(1)">2 · Normalisation</button>
+        <button class="step-tab" onclick="showStep(2)">3 · K-Means</button>
+        <button class="step-tab" onclick="showStep(3)">4 · Scatter Chart</button>
+        <button class="step-tab" onclick="showStep(4)">5 · Gender Donut</button>
+        <button class="step-tab" onclick="showStep(5)">6 · Histograms</button>
+        <button class="step-tab" onclick="showStep(6)">7 · Segment Stats</button>
+        <button class="step-tab" onclick="showStep(7)">8 · Data Table</button>
+      </div>
+
+      <div class="step-panels">
+
+        <!-- Step 1: Raw Data -->
+        <div class="step-panel active" id="sp-0">
+          <div class="sp-title">The CSV data — stored as a JS array called <code>RAW</code></div>
+          <div class="sp-desc">The Kaggle CSV (200 rows, 4 columns) is embedded directly in the HTML as a JavaScript constant. No server, no file upload, no CSV parser needed. Each row is an array of 4 numbers accessed by index.</div>
+          <div class="sp-code"><span class="cm">// Each row: [Gender, Age, Income, Score]</span>
+const RAW = [
+  <span class="hl">[0, 56, 16, 11]</span>,  <span class="cm">// Customer #1</span>
+  [1, 69, 33, 38],  <span class="cm">// Customer #2</span>
+  [1, 46, 16, 38],  <span class="cm">// Customer #3</span>
+  <span class="cm">// … 197 more rows</span>
+];</div>
+          <div class="sp-cells">
+            <div class="sp-cell active"><div class="sc-lbl">r[0]</div><div class="sc-val">0 / 1</div><div class="sc-sub">Gender (0=Male, 1=Female)</div></div>
+            <div class="sp-cell"><div class="sc-lbl">r[1]</div><div class="sc-val">18–70</div><div class="sc-sub">Age (years)</div></div>
+            <div class="sp-cell"><div class="sc-lbl">r[2]</div><div class="sc-val">15–137</div><div class="sc-sub">Annual Income (k$)</div></div>
+            <div class="sp-cell"><div class="sc-lbl">r[3]</div><div class="sc-val">1–99</div><div class="sc-sub">Spending Score</div></div>
+          </div>
+          <div class="sp-desc" style="margin-bottom:0">So <code style="font-size:.73rem">RAW[0][2]</code> = 16 means customer #1 earns $16k/year. Every chart and card on this page reads from this single array.</div>
+        </div>
+
+        <!-- Step 2: Normalisation -->
+        <div class="step-panel" id="sp-1">
+          <div class="sp-title">Z-score normalisation before clustering</div>
+          <div class="sp-desc">K-Means works by measuring distances between points. If income ranges 15–137 and score ranges 1–99, income values are larger just because of scale — not meaning — and would dominate the clustering. The code subtracts the mean and divides by the standard deviation for both columns, rescaling each to mean ≈ 0, std ≈ 1.</div>
+          <div class="sp-code">function normalize(arr) {
+  const mean = arr.reduce((a,b) => a+b, 0) / arr.length;
+  const std  = Math.sqrt(arr.reduce((a,b) => a+(b-mean)**2, 0) / arr.length) || 1;
+  return arr.map(v => <span class="hl">(v - mean) / std</span>);
+}
+
+const incS = normalize(RAW.map(r => r[2])); <span class="cm">// income column → z-scores</span>
+const scS  = normalize(RAW.map(r => r[3])); <span class="cm">// score column  → z-scores</span>
+const pts  = incS.map((v, i) => [v, scS[i]]); <span class="cm">// 2D points for clustering</span>
+
+<span class="cm">// Example: income 16, mean=60.6, std=25.6 → z = (16-60.6)/25.6 = -1.74</span></div>
+          <div class="sp-cells">
+            <div class="sp-cell"><div class="sc-lbl">Raw income</div><div class="sc-val">16</div><div class="sc-sub">Customer #1</div></div>
+            <div class="sp-cell"><div class="sc-lbl">→ Normalised</div><div class="sc-val">−1.74</div><div class="sc-sub">(16 − 60.6) / 25.6</div></div>
+            <div class="sp-cell active"><div class="sc-lbl">Effect</div><div class="sc-val">Equal scale</div><div class="sc-sub">Income & score weighted equally</div></div>
+          </div>
+          <div class="sp-desc" style="margin-bottom:0">Only columns 2 and 3 are normalised. Gender and age ride along in <code style="font-size:.73rem">RAW</code> for display — they never enter the distance calculation.</div>
+        </div>
+
+        <!-- Step 3: K-Means -->
+        <div class="step-panel" id="sp-2">
+          <div class="sp-title">K-Means clustering (K=5, pure JavaScript)</div>
+          <div class="sp-desc">The algorithm runs 15 times with random starting centroids and keeps the run with the lowest inertia (tightest clusters). After convergence, cluster IDs are remapped to stable semantic names based on which quadrant each centroid falls in — so the same cluster always means the same thing across page reloads.</div>
+          <div class="sp-code">const {labels: raw, cents} = kmeans(pts, 5); <span class="cm">// 15 runs, best wins</span>
+
+<span class="cm">// Remap random cluster IDs → stable quadrant labels</span>
+const quad = c => {
+  const [x, y] = c;
+  if (x &lt; -0.3 &amp;&amp; y &gt;  0.3) return 0; <span class="cm">// Low income, High spend</span>
+  if (x &gt;  0.3 &amp;&amp; y &gt;  0.3) return 4; <span class="cm">// High income, High spend</span>
+  if (x &lt; -0.3 &amp;&amp; y &lt;= -0.3) return 2; <span class="cm">// Low income, Low spend</span>
+  if (x &gt;  0.3 &amp;&amp; y &lt;= -0.3) return 3; <span class="cm">// High income, Low spend</span>
+  return 1;                              <span class="cm">// Middle cluster</span>
+};
+const labels = raw.map(l => remap[l]);
+<span class="cm">// labels[i] = 0..4 for each of the 200 customers</span></div>
+          <div class="sp-clusters">
+            <div class="sp-clcard"><div class="cc-name" style="color:#2E86AB">C0</div><div class="cc-desc">Low income<br>High spend</div></div>
+            <div class="sp-clcard"><div class="cc-name" style="color:#1A3C5E">C1</div><div class="cc-desc">Middle<br>cluster</div></div>
+            <div class="sp-clcard"><div class="cc-name" style="color:#F18F01">C2</div><div class="cc-desc">Low income<br>Low spend</div></div>
+            <div class="sp-clcard"><div class="cc-name" style="color:#C73E1D">C3</div><div class="cc-desc">High income<br>Low spend</div></div>
+            <div class="sp-clcard"><div class="cc-name" style="color:#A23B72">C4</div><div class="cc-desc">High income<br>High spend</div></div>
+          </div>
+          <div class="sp-desc" style="margin-bottom:0">Silhouette score and Davies-Bouldin index are computed from these labels to measure cluster quality — displayed in the stat cards at the top.</div>
+        </div>
+
+        <!-- Step 4: Scatter -->
+        <div class="step-panel" id="sp-3">
+          <div class="sp-title">Scatter chart — Income vs Spending Score</div>
+          <div class="sp-desc">The scatter plot uses the <em>original</em> (non-normalised) income and score values — <code style="font-size:.73rem">r[2]</code> on X and <code style="font-size:.73rem">r[3]</code> on Y — so axis labels remain human-readable. The cluster label decides the colour. Chart.js receives 5 separate datasets (one per cluster), which powers the per-cluster legend and tooltip.</div>
+          <div class="sp-code">new Chart(cv_scatter, { type: 'scatter',
+  data: { datasets: COLORS.map((col, c) => ({
+    label: NAMES[c],
+    data: RAW
+      <span class="hl">.filter((_, i) => labels[i] === c)</span>   <span class="cm">// only this cluster's rows</span>
+      <span class="hl">.map(r => ({ x: r[2], y: r[3] }))</span>, <span class="cm">// income→x, score→y</span>
+    backgroundColor: col + 'BB',
+    borderColor: col
+  }))}
+});</div>
+          <div class="sp-flow">
+            <div class="sp-fbox">RAW (200 rows)</div>
+            <div class="sp-farr">→</div>
+            <div class="sp-fbox accent">filter by labels[i]</div>
+            <div class="sp-farr">→</div>
+            <div class="sp-fbox">map to {x, y}</div>
+            <div class="sp-farr">→</div>
+            <div class="sp-fbox">5 coloured datasets</div>
+          </div>
+        </div>
+
+        <!-- Step 5: Gender donut -->
+        <div class="step-panel" id="sp-4">
+          <div class="sp-title">Gender donut chart — counting a binary column</div>
+          <div class="sp-desc">The simplest chart on the page. Gender is encoded as 0 (Male) or 1 (Female) in column index 0. One <code style="font-size:.73rem">.filter()</code> call counts females; the rest are male. Two numbers → two slices.</div>
+          <div class="sp-code"><span class="cm">// r[0] === 1 means Female</span>
+const femN = RAW<span class="hl">.filter(r => r[0] === 1)</span>.length; <span class="cm">// → 112</span>
+
+new Chart(cv_gender, { type: 'doughnut',
+  data: {
+    labels: ['Female', 'Male'],
+    datasets: [{ data: [<span class="hl">femN, 200 - femN</span>] }]
+  }
+});</div>
+          <div class="sp-cells">
+            <div class="sp-cell active"><div class="sc-lbl">r[0] === 1</div><div class="sc-val">112</div><div class="sc-sub">Female · 56%</div></div>
+            <div class="sp-cell"><div class="sc-lbl">200 − 112</div><div class="sc-val">88</div><div class="sc-sub">Male · 44%</div></div>
+          </div>
+          <div class="sp-bars">
+            <div class="sp-bar-row"><div class="sp-bar-lbl">Female</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:56%;background:#A23B72"></div></div><div class="sp-bar-cnt">112</div></div>
+            <div class="sp-bar-row"><div class="sp-bar-lbl">Male</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:44%;background:#2E86AB"></div></div><div class="sp-bar-cnt">88</div></div>
+          </div>
+        </div>
+
+        <!-- Step 6: Histograms -->
+        <div class="step-panel" id="sp-5">
+          <div class="sp-title">Age, Income & Score histograms — manual binning</div>
+          <div class="sp-desc">There's no built-in histogram type in Chart.js, so the code manually builds bin counts. It defines bin edges as an array, then loops every row and places the column value into the correct bin using a nested <code style="font-size:.73rem">for</code> loop. The same pattern is used for all three histograms — only the column index and bin edges differ.</div>
+          <div class="sp-code"><span class="cm">// Age histogram (r[1])</span>
+const bins   = [18, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
+const counts = new Array(bins.length - 1).fill(0);
+
+RAW.forEach(r => {
+  for (let i = 0; i &lt; bins.length - 1; i++) {
+    if (<span class="hl">r[1] >= bins[i] && r[1] &lt; bins[i+1]</span>) {
+      counts[i]++;
+      break;  <span class="cm">// stop once placed</span>
+    }
+  }
+});
+<span class="cm">// Income uses r[2], Spending Score uses r[3] — same pattern</span></div>
+          <div class="sp-bars" id="age-bars-embed"></div>
+          <div class="sp-desc" style="margin-bottom:0">The bin label strings (e.g. "18-25") are generated by <code style="font-size:.73rem">bins.slice(0,-1).map((v,i) => v+'-'+bins[i+1])</code>.</div>
+        </div>
+
+        <!-- Step 7: Segment stats -->
+        <div class="step-panel" id="sp-6">
+          <div class="sp-title">Segment cards & profile chart — per-cluster averages</div>
+          <div class="sp-desc">For each of the 5 clusters, the code filters <code style="font-size:.73rem">RAW</code> to just the rows assigned to that cluster, then computes averages for income, score, age and female %. These feed both the segment cards above and the "Avg Income & Score per Cluster" bar chart.</div>
+          <div class="sp-code">for (let c = 0; c &lt; 5; c++) {
+  <span class="cm">// Keep only rows K-Means assigned to this cluster</span>
+  const m = RAW.<span class="hl">filter((_, i) => labels[i] === c)</span>;
+
+  const avgIncome = (m.reduce((s,r) => s + r[2], 0) / m.length).toFixed(0);
+  const avgScore  = (m.reduce((s,r) => s + r[3], 0) / m.length).toFixed(0);
+  const avgAge    = (m.reduce((s,r) => s + r[1], 0) / m.length).toFixed(0);
+  const femalePct = Math.round(
+    m.filter(r => r[0] === 1).length / m.length * 100
+  );
+  <span class="cm">// → renders segment card + feeds grouped bar chart</span>
+}</div>
+          <div class="sp-bars">
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;font-family:'DM Mono',monospace">Avg income per cluster (k$)</div>
+            <div class="sp-bar-row"><div class="sp-bar-lbl" style="color:#2E86AB">C0</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:28%;background:#2E86AB"></div></div><div class="sp-bar-cnt" style="width:40px;font-size:.68rem">~$39k</div></div>
+            <div class="sp-bar-row"><div class="sp-bar-lbl" style="color:#1A3C5E">C1</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:40%;background:#1A3C5E"></div></div><div class="sp-bar-cnt" style="width:40px;font-size:.68rem">~$55k</div></div>
+            <div class="sp-bar-row"><div class="sp-bar-lbl" style="color:#F18F01">C2</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:64%;background:#F18F01"></div></div><div class="sp-bar-cnt" style="width:40px;font-size:.68rem">~$88k</div></div>
+            <div class="sp-bar-row"><div class="sp-bar-lbl" style="color:#C73E1D">C3</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:64%;background:#C73E1D"></div></div><div class="sp-bar-cnt" style="width:40px;font-size:.68rem">~$88k</div></div>
+            <div class="sp-bar-row"><div class="sp-bar-lbl" style="color:#A23B72">C4</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:75%;background:#A23B72"></div></div><div class="sp-bar-cnt" style="width:40px;font-size:.68rem">~$103k</div></div>
+          </div>
+        </div>
+
+        <!-- Step 8: Table -->
+        <div class="step-panel" id="sp-7">
+          <div class="sp-title">Full data table — one row per customer</div>
+          <div class="sp-desc">The table at the bottom simply iterates all 200 rows. For each row it reads the four column values directly and looks up the cluster label from the <code style="font-size:.73rem">labels</code> array to colour-code each customer.</div>
+          <div class="sp-code">RAW.forEach((r, i) => {
+  const c = <span class="hl">labels[i]</span>; <span class="cm">// 0–4 cluster for this customer</span>
+
+  tbody.innerHTML += `&lt;tr&gt;
+    &lt;td&gt;${i+1}&lt;/td&gt;
+    &lt;td&gt;${ <span class="hl">r[0] ? 'Female' : 'Male'</span> }&lt;/td&gt;  <span class="cm">// r[0]: 0=Male 1=Female</span>
+    &lt;td&gt;${ <span class="hl">r[1]</span> }&lt;/td&gt;                        <span class="cm">// r[1]: age</span>
+    &lt;td&gt;$${ <span class="hl">r[2]</span> }k&lt;/td&gt;                      <span class="cm">// r[2]: income</span>
+    &lt;td&gt;${ <span class="hl">r[3]</span> }&lt;/td&gt;                        <span class="cm">// r[3]: score</span>
+    &lt;td style="color:${COLORS[c]}"&gt;${NAMES[c]}&lt;/td&gt;
+  &lt;/tr&gt;`;
+});</div>
+          <div class="sp-flow">
+            <div class="sp-fbox">RAW[i]</div>
+            <div class="sp-farr">→</div>
+            <div class="sp-fbox">r[0] r[1] r[2] r[3]</div>
+            <div class="sp-farr">+</div>
+            <div class="sp-fbox accent">labels[i]</div>
+            <div class="sp-farr">→</div>
+            <div class="sp-fbox">Table row + cluster colour</div>
+          </div>
+          <div class="sp-desc" style="margin-bottom:0">Every visual on this page — scatter, donut, histograms, profile bars, stat cards, segment cards, and this table — all come from the same <code style="font-size:.73rem">RAW</code> array and the <code style="font-size:.73rem">labels</code> array produced by K-Means. No server. No external library beyond Chart.js.</div>
+        </div>
+
+      </div><!-- /step-panels -->
+
+      <div class="sp-nav">
+        <button class="sp-btn" id="sp-prev" onclick="stepNav(-1)" disabled>← Back</button>
+        <button class="sp-btn primary" id="sp-next" onclick="stepNav(1)">Next →</button>
+        <span class="sp-step-info" id="sp-step-info">Step 1 / 8</span>
+      </div>
+    </div><!-- /pipeline-body -->
+  </div><!-- /pipeline-section -->
+
+  <div class="stats">
+    <div class="stat" style="--ac:#2E86AB"><div class="v">200</div><div class="l">Customers</div></div>
+    <div class="stat" style="--ac:#F18F01"><div class="v" id="s-sil">—</div><div class="l">Silhouette Score</div></div>
+    <div class="stat" style="--ac:#A23B72"><div class="v" id="s-db">—</div><div class="l">Davies-Bouldin</div></div>
+    <div class="stat" style="--ac:#1A3C5E"><div class="v">5</div><div class="l">Clusters (K)</div></div>
+    <div class="stat" style="--ac:#C73E1D"><div class="v">56%</div><div class="l">Female</div></div>
+    <div class="stat" style="--ac:#1E8C5A"><div class="v">38.9</div><div class="l">Avg Age</div></div>
+  </div>
+
+  <div class="segs" id="segs"></div>
+
+  <div class="g1"><div class="card">
+    <div class="card-title">Annual Income vs Spending Score — K-Means Clusters (K=5)</div>
+    <canvas id="cv-scatter"></canvas>
+  </div></div>
+
+  <div class="g3">
+    <div class="card"><div class="card-title">Gender Distribution</div><canvas id="cv-gender"></canvas></div>
+    <div class="card"><div class="card-title">Age Distribution</div><canvas id="cv-age"></canvas></div>
+    <div class="card"><div class="card-title">Avg Income &amp; Score per Cluster</div><canvas id="cv-profile"></canvas></div>
+  </div>
+
+  <div class="g2">
+    <div class="card"><div class="card-title">Annual Income Distribution (k$)</div><canvas id="cv-income"></canvas></div>
+    <div class="card"><div class="card-title">Spending Score Distribution</div><canvas id="cv-score"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">All 200 Customers with Cluster Labels</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Gender</th><th>Age</th><th>Income (k$)</th><th>Score</th><th>Cluster</th></tr></thead>
+        <tbody id="tbl"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>Dataset: Mall Customer Segmentation · Kaggle · kaggle.com/vjchoudhary7 · Choudhary, 2019</footer>
+
+<script>
+// ── DATA: [Gender(0=M,1=F), Age, Income, Score] ────────────────────────────
+const RAW=[
+[0,56,16,11],[1,69,33,38],[1,46,16,38],[1,32,32,34],[0,60,32,30],
+[0,25,29,27],[0,38,33,34],[0,56,34,38],[1,36,15,24],[0,40,29,30],
+[0,28,37,17],[0,28,19,29],[0,41,18,10],[1,53,38,17],[1,57,24,17],
+[0,41,34,24],[1,20,19,34],[0,39,20,2],[1,19,27,11],[0,41,33,23],
+[0,61,37,16],[0,47,25,16],[1,55,22,4],[1,19,22,4],[1,38,38,25],
+[1,50,17,32],[1,29,17,27],[1,39,32,19],[0,61,35,5],[0,42,32,28],
+[0,66,24,22],[1,44,35,6],[1,59,15,5],[1,45,23,12],[0,33,28,34],
+[1,32,31,14],[1,64,27,27],[0,68,23,26],[1,61,39,22],[1,69,29,30],
+[1,20,25,77],[0,54,18,61],[0,68,22,95],[1,24,34,75],[1,38,29,82],
+[0,26,28,86],[0,56,37,74],[1,35,38,62],[0,21,27,86],[1,42,28,67],
+[1,31,17,83],[1,67,28,78],[1,26,20,95],[0,43,33,75],[1,19,39,97],
+[1,37,24,77],[0,45,21,82],[0,64,26,85],[1,24,31,73],[1,61,34,85],
+[0,25,18,70],[1,64,17,78],[1,52,29,96],[1,31,29,82],[1,34,16,68],
+[0,53,22,79],[0,67,24,97],[1,57,20,86],[1,21,16,66],[1,19,19,93],
+[0,23,35,82],[1,59,35,66],[1,21,20,64],[1,46,25,90],[1,35,38,69],
+[1,43,37,63],[1,61,33,91],[0,51,22,97],[1,27,18,84],[1,53,20,62],
+[0,31,73,15],[0,48,75,30],[1,65,120,2],[1,32,77,26],[1,25,120,5],
+[0,31,139,26],[0,40,137,19],[1,57,89,12],[0,38,116,1],[0,33,83,38],
+[1,62,106,11],[1,35,72,33],[0,64,75,10],[1,41,74,23],[1,43,79,2],
+[1,42,82,2],[0,62,134,37],[1,58,86,9],[1,46,84,24],[1,32,107,35],
+[1,62,118,5],[0,18,131,14],[0,42,78,34],[1,24,104,1],[1,26,109,22],
+[1,41,129,29],[0,18,80,37],[1,61,83,30],[1,25,104,21],[1,41,106,5],
+[0,28,95,4],[1,68,111,25],[1,34,87,8],[0,25,108,14],[1,52,101,38],
+[1,52,92,15],[1,50,94,17],[0,22,135,14],[1,59,122,6],[1,56,75,3],
+[1,58,76,68],[0,45,111,75],[0,24,98,93],[0,26,96,96],[0,25,98,98],
+[1,29,126,93],[0,51,96,93],[0,50,137,82],[1,65,135,70],[1,40,74,70],
+[0,41,107,73],[0,54,100,96],[1,52,121,75],[0,61,98,68],[0,57,74,89],
+[0,39,116,64],[0,44,114,62],[1,52,96,91],[0,18,105,96],[1,52,95,87],
+[1,54,138,80],[0,64,80,70],[0,31,107,66],[0,20,92,86],[1,18,115,72],
+[0,22,82,78],[0,43,129,72],[1,31,137,65],[0,56,106,68],[0,44,100,69],
+[0,26,120,89],[0,32,109,82],[1,32,80,83],[0,43,70,97],[1,59,90,86],
+[0,30,105,83],[1,68,126,61],[0,49,132,75],[0,56,90,69],[1,66,122,69],
+[1,69,49,59],[1,49,64,48],[0,21,42,59],[0,47,64,50],[0,54,45,41],
+[1,40,46,57],[0,56,66,41],[1,62,66,56],[0,32,50,51],[1,60,66,58],
+[1,46,61,46],[1,53,59,45],[0,30,60,40],[0,49,56,50],[1,24,61,57],
+[0,68,60,56],[0,39,46,56],[1,45,59,48],[1,19,56,59],[0,59,61,47],
+[0,62,56,46],[0,23,40,52],[1,45,69,58],[0,45,66,58],[0,61,69,56],
+[0,61,52,55],[0,37,47,58],[1,47,57,40],[0,28,53,58],[1,45,54,57],
+[1,42,41,56],[0,56,57,45],[0,50,58,43],[0,18,40,47],[1,44,68,46],
+[1,69,42,49],[1,30,49,58],[1,58,53,41],[0,20,67,40],[1,56,62,57]
+];
+
+// ── K-MEANS (pure JS) ────────────────────────────────────────────────────────
+function normalize(arr){
+  const m=arr.reduce((a,b)=>a+b,0)/arr.length;
+  const s=Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length)||1;
+  return arr.map(v=>(v-m)/s);
+}
+
+function kmeans(pts,k,runs=15){
+  let best=null,bestI=Infinity;
+  for(let r=0;r<runs;r++){
+    let cents=[],used=new Set();
+    while(cents.length<k){const i=Math.floor(Math.random()*pts.length);if(!used.has(i)){used.add(i);cents.push([...pts[i]]);}}
+    let labels=new Array(pts.length).fill(0);
+    for(let it=0;it<200;it++){
+      labels=pts.map(p=>{let b=0,bd=Infinity;cents.forEach((c,ci)=>{const d=p.reduce((s,v,i)=>s+(v-c[i])**2,0);if(d<bd){bd=d;b=ci;}});return b;});
+      const nc=Array.from({length:k},()=>new Array(pts[0].length).fill(0)),cnt=new Array(k).fill(0);
+      labels.forEach((l,i)=>{pts[i].forEach((v,d)=>nc[l][d]+=v);cnt[l]++;});
+      let ch=false;
+      nc.forEach((c,ci)=>{if(!cnt[ci])return;c.forEach((_,d)=>{const nv=c[d]/cnt[ci];if(Math.abs(nv-cents[ci][d])>1e-8)ch=true;cents[ci][d]=nv;});});
+      if(!ch)break;
+    }
+    const inertia=labels.reduce((s,l,i)=>s+pts[i].reduce((ss,v,d)=>ss+(v-cents[l][d])**2,0),0);
+    if(inertia<bestI){bestI=inertia;best={labels:[...labels],cents:cents.map(c=>[...c])};}
+  }
+  return best;
+}
+
+function silhouette(pts,labels){
+  const k=Math.max(...labels)+1;let tot=0;
+  pts.forEach((p,i)=>{
+    const ml=labels[i],mp=pts.filter((_,j)=>labels[j]===ml&&j!==i);
+    if(!mp.length)return;
+    const a=mp.reduce((s,q)=>s+Math.sqrt(p.reduce((ss,v,d)=>ss+(v-q[d])**2,0)),0)/mp.length;
+    let b=Infinity;
+    for(let c=0;c<k;c++){if(c===ml)continue;const cp=pts.filter((_,j)=>labels[j]===c);if(!cp.length)continue;const bd=cp.reduce((s,q)=>s+Math.sqrt(p.reduce((ss,v,d)=>ss+(v-q[d])**2,0)),0)/cp.length;if(bd<b)b=bd;}
+    tot+=(b-a)/Math.max(a,b);
+  });
+  return(tot/pts.length).toFixed(3);
+}
+
+function daviesBouldin(pts,labels,cents){
+  const k=cents.length;
+  const sc=cents.map((_,c)=>{const m=pts.filter((_,i)=>labels[i]===c);if(!m.length)return 0;return m.reduce((s,p)=>s+Math.sqrt(p.reduce((ss,v,d)=>ss+(v-cents[c][d])**2,0)),0)/m.length;});
+  let db=0;
+  for(let i=0;i<k;i++){let mx=0;for(let j=0;j<k;j++){if(i===j)continue;const dist=Math.sqrt(cents[i].reduce((s,v,d)=>s+(v-cents[j][d])**2,0));const r=(sc[i]+sc[j])/(dist||1e-9);if(r>mx)mx=r;}db+=mx;}
+  return(db/k).toFixed(3);
+}
+
+// ── RUN CLUSTERING ────────────────────────────────────────────────────────────
+const incS=normalize(RAW.map(r=>r[2]));
+const scS =normalize(RAW.map(r=>r[3]));
+const pts =incS.map((v,i)=>[v,scS[i]]);
+
+const {labels:raw,cents}=kmeans(pts,5);
+
+// Map cluster IDs to semantic quadrants so labels are stable
+const quad=c=>{const[x,y]=c;if(x<-0.3&&y>0.3)return 0;if(x>0.3&&y>0.3)return 4;if(x<-0.3&&y<=-0.3)return 2;if(x>0.3&&y<=-0.3)return 3;return 1;};
+const remap=new Array(5);cents.forEach((c,i)=>remap[i]=quad(c));
+const labels=raw.map(l=>remap[l]);
+
+const sil=silhouette(pts,labels);
+const db =daviesBouldin(pts,labels,cents.map((_,i)=>cents[remap.indexOf(i)]));
+
+document.getElementById('s-sil').textContent=sil;
+document.getElementById('s-db').textContent=db;
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const COLORS  =['#2E86AB','#1A3C5E','#F18F01','#C73E1D','#A23B72'];
+const NAMES   =['Careful Spenders','Standard Customers','Target Customers','Careless Spenders','Sensible Customers'];
+const STRATEGY=['Loyalty rewards & budget discounts','Seasonal & general promotions','EMI plans & budget bundles','Re-engage with premium events','VIP loyalty & premium upsell'];
+
+// ── SEGMENT CARDS ─────────────────────────────────────────────────────────────
+const segsEl=document.getElementById('segs');
+for(let c=0;c<5;c++){
+  const m=RAW.filter((_,i)=>labels[i]===c);
+  const avgI=(m.reduce((s,r)=>s+r[2],0)/m.length).toFixed(0);
+  const avgS=(m.reduce((s,r)=>s+r[3],0)/m.length).toFixed(0);
+  const avgA=(m.reduce((s,r)=>s+r[1],0)/m.length).toFixed(0);
+  const fp=Math.round(m.filter(r=>r[0]===1).length/m.length*100);
+  segsEl.innerHTML+=`<div class="seg">
+    <div class="seg-h" style="background:${COLORS[c]}">${NAMES[c]}</div>
+    <div class="seg-b">
+      <div class="seg-row"><span class="k">Count</span><span class="vv">${m.length}</span></div>
+      <div class="seg-row"><span class="k">Avg Income</span><span class="vv">$${avgI}k</span></div>
+      <div class="seg-row"><span class="k">Avg Score</span><span class="vv">${avgS}</span></div>
+      <div class="seg-row"><span class="k">Avg Age</span><span class="vv">${avgA} yrs</span></div>
+      <div class="seg-row"><span class="k">Female %</span><span class="vv">${fp}%</span></div>
+      <span class="seg-tag" style="background:${COLORS[c]}">${STRATEGY[c]}</span>
+    </div>
+  </div>`;
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+const grid={color:'#E4EDF5'};
+const font={family:"'DM Sans',sans-serif",size:11};
+
+new Chart(document.getElementById('cv-scatter'),{type:'scatter',data:{datasets:COLORS.map((col,c)=>({label:NAMES[c],data:RAW.filter((_,i)=>labels[i]===c).map(r=>({x:r[2],y:r[3]})),backgroundColor:col+'BB',borderColor:col,borderWidth:1,pointRadius:5,pointHoverRadius:7}))},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: $${c.parsed.x}k income, score ${c.parsed.y}`}}},scales:{x:{title:{display:true,text:'Annual Income (k$)',font:{size:12}},grid},y:{title:{display:true,text:'Spending Score',font:{size:12}},grid,min:0,max:100}}}});
+
+const femN=RAW.filter(r=>r[0]===1).length;
+new Chart(document.getElementById('cv-gender'),{type:'doughnut',data:{labels:['Female','Male'],datasets:[{data:[femN,200-femN],backgroundColor:['#A23B72','#2E86AB'],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font}}}}});
+
+const ab=[18,25,30,35,40,45,50,55,60,65,70],ac=new Array(ab.length-1).fill(0);
+RAW.forEach(r=>{for(let i=0;i<ab.length-1;i++){if(r[1]>=ab[i]&&r[1]<ab[i+1]){ac[i]++;break;}}});
+new Chart(document.getElementById('cv-age'),{type:'bar',data:{labels:ab.slice(0,-1).map((v,i)=>`${v}-${ab[i+1]}`),datasets:[{data:ac,backgroundColor:'#2E86ABAA',borderColor:'#2E86AB',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid,beginAtZero:true}}}});
+
+const pl=[],pi=[],ps=[];
+for(let c=0;c<5;c++){const m=RAW.filter((_,i)=>labels[i]===c);if(!m.length)continue;pl.push(`C${c}`);pi.push(+(m.reduce((s,r)=>s+r[2],0)/m.length).toFixed(1));ps.push(+(m.reduce((s,r)=>s+r[3],0)/m.length).toFixed(1));}
+new Chart(document.getElementById('cv-profile'),{type:'bar',data:{labels:pl,datasets:[{label:'Avg Income (k$)',data:pi,backgroundColor:'#2E86ABAA',borderColor:'#2E86AB',borderWidth:1},{label:'Avg Score',data:ps,backgroundColor:'#A23B72AA',borderColor:'#A23B72',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font}}},scales:{x:{grid:{display:false}},y:{grid,beginAtZero:true}}}});
+
+const ib=[10,20,30,40,50,60,70,80,90,100,120,140],ic=new Array(ib.length-1).fill(0);
+RAW.forEach(r=>{for(let i=0;i<ib.length-1;i++){if(r[2]>=ib[i]&&r[2]<ib[i+1]){ic[i]++;break;}}});
+new Chart(document.getElementById('cv-income'),{type:'bar',data:{labels:ib.slice(0,-1).map((v,i)=>`${v}-${ib[i+1]}`),datasets:[{data:ic,backgroundColor:'#F18F01AA',borderColor:'#F18F01',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid,beginAtZero:true}}}});
+
+const sb=[0,10,20,30,40,50,60,70,80,90,100],sc2=new Array(sb.length-1).fill(0);
+RAW.forEach(r=>{for(let i=0;i<sb.length-1;i++){if(r[3]>=sb[i]&&r[3]<sb[i+1]){sc2[i]++;break;}}});
+new Chart(document.getElementById('cv-score'),{type:'bar',data:{labels:sb.slice(0,-1).map((v,i)=>`${v}-${sb[i+1]}`),datasets:[{data:sc2,backgroundColor:'#C73E1DAA',borderColor:'#C73E1D',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid,beginAtZero:true}}}});
+
+// Table — all 200 rows
+const tbody=document.getElementById('tbl');
+RAW.forEach((r,i)=>{const c=labels[i];tbody.innerHTML+=`<tr><td style="font-family:'DM Mono',monospace;font-size:.75rem">${i+1}</td><td>${r[0]?'Female':'Male'}</td><td>${r[1]}</td><td>$${r[2]}k</td><td>${r[3]}</td><td><span class="dot" style="background:${COLORS[c]}"></span><span style="font-size:.74rem;color:${COLORS[c]};font-weight:600">${NAMES[c]}</span></td></tr>`;});
+
+// ── DATA PIPELINE EXPLAINER CONTROLS ─────────────────────────────────────────
+let currentStep=0;
+const STEP_COUNT=8;
+const STEP_NAMES=['Raw Data','Normalisation','K-Means','Scatter Chart','Gender Donut','Histograms','Segment Stats','Data Table'];
+
+function showStep(n){
+  document.querySelectorAll('.step-panel').forEach((p,i)=>p.classList.toggle('active',i===n));
+  document.querySelectorAll('.step-tab').forEach((t,i)=>t.classList.toggle('active',i===n));
+  document.getElementById('sp-prev').disabled=(n===0);
+  document.getElementById('sp-next').disabled=(n===STEP_COUNT-1);
+  document.getElementById('sp-step-info').textContent='Step '+(n+1)+' / '+STEP_COUNT+' · '+STEP_NAMES[n];
+  currentStep=n;
+  if(n===5) buildAgeBars();
+}
+
+function stepNav(dir){showStep(Math.max(0,Math.min(STEP_COUNT-1,currentStep+dir)));}
+
+function buildAgeBars(){
+  const el=document.getElementById('age-bars-embed');
+  if(el.innerHTML) return;
+  const data=[['18-25',8],['25-30',22],['30-35',24],['35-40',28],['40-45',26],['45-50',18],['50-55',20],['55-60',16],['60-65',16],['65-70',12]];
+  const max=28;
+  el.innerHTML='<div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;font-family:\'DM Mono\',monospace">Age group counts</div>'+
+    data.map(([l,c])=>`<div class="sp-bar-row"><div class="sp-bar-lbl">${l}</div><div class="sp-bar-track"><div class="sp-bar-fill" style="width:${Math.round(c/max*100)}%;background:#2E86AB;transition:width .6s"></div></div><div class="sp-bar-cnt">${c}</div></div>`).join('');
+}
+
+showStep(0);
+</script>
+</body>
+</html>
